@@ -36,26 +36,26 @@ static NSString *accessGroupID() {
 
 %group SideloadingFixes
 //Fix login (2) - Ginsu & AhmedBakfir
-// %hook SSOSafariSignIn
-// - (void)signInWithURL:(id)arg1 presentationAnchor:(id)arg2 completionHandler:(id)arg3 {
-//     NSURL *origURL = arg1;
+%hook SSOSafariSignIn
+- (void)signInWithURL:(id)arg1 presentationAnchor:(id)arg2 completionHandler:(id)arg3 {
+     NSURL *origURL = arg1;
 
-//     NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:origURL resolvingAgainstBaseURL:NO];
-//     NSMutableArray *newQueryItems = [urlComponents.queryItems mutableCopy];
-//     for (NSURLQueryItem *queryItem in urlComponents.queryItems) {
-//         if ([queryItem.name isEqualToString:@"system_version"]
-//             || [queryItem.name isEqualToString:@"app_version"]
-//             || [queryItem.name isEqualToString:@"kdlc"]
-//             || [queryItem.name isEqualToString:@"kss"]
-//             || [queryItem.name isEqualToString:@"lib_ver"]
-//             || [queryItem.name isEqualToString:@"device_model"]) {
-//             [newQueryItems removeObject:queryItem];
-//         }
-//     }
-//     urlComponents.queryItems = [newQueryItems copy];
-//     %orig(urlComponents.URL, arg2, arg3);
-// }
-// %end
+     NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:origURL resolvingAgainstBaseURL:NO];
+     NSMutableArray *newQueryItems = [urlComponents.queryItems mutableCopy];
+     for (NSURLQueryItem *queryItem in urlComponents.queryItems) {
+         if ([queryItem.name isEqualToString:@"system_version"]
+             || [queryItem.name isEqualToString:@"app_version"]
+             || [queryItem.name isEqualToString:@"kdlc"]
+             || [queryItem.name isEqualToString:@"kss"]
+             || [queryItem.name isEqualToString:@"lib_ver"]
+             || [queryItem.name isEqualToString:@"device_model"]) {
+             [newQueryItems removeObject:queryItem];
+         }
+     }
+     urlComponents.queryItems = [newQueryItems copy];
+     %orig(urlComponents.URL, arg2, arg3);
+}
+%end
 
 //Force enable safari sign-in
 %hook SSOConfiguration
