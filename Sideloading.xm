@@ -322,10 +322,8 @@ BOOL isFirstTime = YES;
     // A short delay allows the UI to update with the "Lyrics unavailable" message first
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         
-        UITextView *lyricsTextView = nil;
-        // This is a common way to access private instance variables in tweaks.
-        // If this doesn't work, you may need to use a tool like FLEXing to find the correct ivar name.
-        object_getInstanceVariable(self, "_lyricsTextView", (void **)&lyricsTextView);
+        // FIX: Use Key-Value Coding (KVC) to access the private ivar. This is ARC-safe.
+        UITextView *lyricsTextView = [self valueForKey:@"_lyricsTextView"];
         
         // Check if native lyrics are unavailable
         if (lyricsTextView && ([lyricsTextView.text containsString:@"Lyrics aren't available"] || [lyricsTextView.text containsString:@"No lyrics available for this song"])) {
