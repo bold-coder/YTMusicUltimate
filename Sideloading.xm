@@ -36,26 +36,26 @@ static NSString *accessGroupID() {
 
 %group SideloadingFixes
 //Fix login (2) - Ginsu & AhmedBakfir
-// %hook SSOSafariSignIn
-// - (void)signInWithURL:(id)arg1 presentationAnchor:(id)arg2 completionHandler:(id)arg3 {
-//     NSURL *origURL = arg1;
+%hook SSOSafariSignIn
+- (void)signInWithURL:(id)arg1 presentationAnchor:(id)arg2 completionHandler:(id)arg3 {
+    NSURL *origURL = arg1;
 
-//     NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:origURL resolvingAgainstBaseURL:NO];
-//     NSMutableArray *newQueryItems = [urlComponents.queryItems mutableCopy];
-//     for (NSURLQueryItem *queryItem in urlComponents.queryItems) {
-//         if ([queryItem.name isEqualToString:@"system_version"]
-//             || [queryItem.name isEqualToString:@"app_version"]
-//             || [queryItem.name isEqualToString:@"kdlc"]
-//             || [queryItem.name isEqualToString:@"kss"]
-//             || [queryItem.name isEqualToString:@"lib_ver"]
-//             || [queryItem.name isEqualToString:@"device_model"]) {
-//             [newQueryItems removeObject:queryItem];
-//         }
-//     }
-//     urlComponents.queryItems = [newQueryItems copy];
-//     %orig(urlComponents.URL, arg2, arg3);
-// }
-// %end
+    NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:origURL resolvingAgainstBaseURL:NO];
+    NSMutableArray *newQueryItems = [urlComponents.queryItems mutableCopy];
+    for (NSURLQueryItem *queryItem in urlComponents.queryItems) {
+        if ([queryItem.name isEqualToString:@"system_version"]
+            || [queryItem.name isEqualToString:@"app_version"]
+            || [queryItem.name isEqualToString:@"kdlc"]
+            || [queryItem.name isEqualToString:@"kss"]
+            || [queryItem.name isEqualToString:@"lib_ver"]
+            || [queryItem.name isEqualToString:@"device_model"]) {
+            [newQueryItems removeObject:queryItem];
+        }
+    }
+    urlComponents.queryItems = [newQueryItems copy];
+    %orig(urlComponents.URL, arg2, arg3);
+}
+%end
 
 //Force enable safari sign-in
 %hook SSOConfiguration
@@ -288,3 +288,80 @@ BOOL isFirstTime = YES;
     %init;
     %init(SideloadingFixes);
 }
+
+#pragma mark - Custom Lyrics Provider
+
+#import "Source/LyricsManager.h"
+#import <objc/runtime.h>
+
+// Forward declare classes we need
+@interface YTMLyricsPage : UIViewController
+@property (nonatomic, strong) id model;
+@end
+
+@interface YTPlayerResponse : NSObject
+- (id)videoDetails;
+@end
+
+@interface YTVideoDetails : NSObject
+@property(readonly, nonatomic) NSString *title;
+@property(readonly, nonatomic) NSString *author;
+@end
+
+@interface YTMNowPlayingViewController : UIViewController
+@property (nonatomic, strong) YTPlayerResponse *playerResponse;
+@end
+
+// Hook the native lyrics page
+%hook YTMLyricsPage
+
+// This method is called when the lyrics data is set
+- (void)setModel:(id)model {
+    %orig; // Let the original method run first
+
+    // A short delay allows the UI to update with the "Lyrics unavailable" message first
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        
+        UITextView *lyricsTextView = nil;
+        // This is a common way to access private instance variables in tweaks.
+        // If this doesn't work, you may need to use a tool like FLEXing to find the correct ivar name.
+        object_getInstanceVariable(self, "_lyricsTextView", (void **)&lyricsTextView);
+        
+        // Check if native lyrics are unavailable
+        if (lyricsTextView && ([lyricsTextView.text containsString:@"Lyrics aren't available"] || [lyricsTextView.text containsString:@"No lyrics available for this song"])) {
+            
+            // Traverse the view controller hierarchy to find the Now Playing controller to get song info
+            UIViewController *parent = self.parentViewController;
+            YTMNowPlayingViewController *nowPlayingVC = nil;
+            while(parent){
+                if([parent isKindOfClass:%c(YTMNowPlayingViewController)]){
+                    nowPlayingVC = (YTMNowPlayingViewController *)parent;
+                    break;
+                }
+                parent = parent.parentViewController;
+            }
+
+            if (nowPlayingVC && nowPlayingVC.playerResponse) {
+                YTVideoDetails *videoDetails = [nowPlayingVC.playerResponse videoDetails];
+                NSString *currentTitle = videoDetails.title;
+                NSString *currentArtist = videoDetails.author;
+
+                // Set a temporary loading message
+                lyricsTextView.text = @"Searching for lyrics...";
+                
+                // Fetch lyrics using our manager
+                [[LyricsManager sharedInstance] fetchLyricsForSong:currentTitle artist:currentArtist completion:^(NSString *lyrics, NSError *error) {
+                    if (error) {
+                        lyricsTextView.text = [NSString stringWithFormat:@"An error occurred:\n%@", [error localizedDescription]];
+                    } else {
+                        // Success! Inject the fetched lyrics directly into the native text view.
+                        lyricsTextView.text = lyrics;
+                    }
+                }];
+            }
+        }
+    });
+}
+
+%end
+
