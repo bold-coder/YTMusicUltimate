@@ -34,7 +34,7 @@
 }
 
 // C function to handle the notification
-static void preferencesChanged(CFNotification-center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+static void preferencesChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     os_log(OS_LOG_DEFAULT, "YTMusicUltimate: Lyrics preferences changed, reloading token.");
     [(__bridge LyricsManager *)observer loadToken];
 }
