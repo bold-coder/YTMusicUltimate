@@ -9,4 +9,3 @@
                 completion:(void (^)(NSString *lyrics, NSError *error))completion;
 
 @end
-
