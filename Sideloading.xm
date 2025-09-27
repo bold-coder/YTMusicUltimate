@@ -297,6 +297,7 @@ BOOL isFirstTime = YES;
 // Forward declare classes we need
 @interface YTMLyricsPage : UIViewController
 @property (nonatomic, strong) id model;
+- (void)showDebugLog:(NSString *)logMessage; // Declare the new method here
 @end
 
 @interface YTPlayerResponse : NSObject
