@@ -1,7 +1,11 @@
 #import "LyricsManager.h"
+#import <os/log.h>
 
-// IMPORTANT: Paste your Musixmatch API key here
-static NSString * const musixmatchApiKey = @"PASTE_YOUR_API_KEY_HERE";
+#define LYRICS_DEFAULTS_SUITE @"com.ps.ytmusicultimate"
+
+@interface LyricsManager()
+@property (nonatomic, copy) NSString *userToken;
+@end
 
 @implementation LyricsManager
 
@@ -14,16 +18,46 @@ static NSString * const musixmatchApiKey = @"PASTE_YOUR_API_KEY_HERE";
     return sharedInstance;
 }
 
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        [self loadToken];
+        // Listen for changes in preferences
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(),
+                                        (__bridge const void *)(self),
+                                        preferencesChanged,
+                                        (CFStringRef)@"com.ps.ytmusicultimate/preferences.changed",
+                                        NULL,
+                                        CFNotificationSuspensionBehaviorDeliverImmediately);
+    }
+    return self;
+}
+
+// C function to handle the notification
+static void preferencesChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    os_log(OS_LOG_DEFAULT, "YTMusicUltimate: Lyrics preferences changed, reloading token.");
+    [(__bridge LyricsManager *)observer loadToken];
+}
+
+- (void)loadToken {
+    NSUserDefaults *lyricsPrefs = [[NSUserDefaults alloc] initWithSuiteName:LYRICS_DEFAULTS_SUITE];
+    self.userToken = [lyricsPrefs stringForKey:@"musixmatchUserToken"];
+    os_log(OS_LOG_DEFAULT, "YTMusicUltimate: Loaded Musixmatch token.");
+}
+
 - (void)fetchLyricsForSong:(NSString *)songTitle artist:(NSString *)artistName completion:(void (^)(NSString *lyrics, NSError *error))completion {
-    if (musixmatchApiKey.length == 0 || [musixmatchApiKey isEqualToString:@"PASTE_YOUR_API_KEY_HERE"]) {
-        completion(@"No API key provided. Please add one in LyricsManager.m", nil);
+    if (!self.userToken || self.userToken.length == 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(@"Musixmatch token not found. Please add one in YTMusicUltimate settings.", nil);
+        });
         return;
     }
 
     NSString *trackString = [songTitle stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
     NSString *artistString = [artistName stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
 
-    NSString *urlString = [NSString stringWithFormat:@"https://api.musixmatch.com/ws/1.1/matcher.lyrics.get?q_track=%@&q_artist=%@&apikey=%@", trackString, artistString, musixmatchApiKey];
+    // This is the unofficial endpoint used by apps like Spotify
+    NSString *urlString = [NSString stringWithFormat:@"https://apic-mobile.musixmatch.com/ws/1.1/macro.subtitles.get?format=json&namespace=lyrics_synched&q_album=&q_artist=%@&q_artists=%@&q_track=%@&track_spotify_id=&user_language=en&user_token=%@", artistString, artistString, trackString, self.userToken];
     NSURL *url = [NSURL URLWithString:urlString];
 
     [[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
@@ -43,16 +77,21 @@ static NSString * const musixmatchApiKey = @"PASTE_YOUR_API_KEY_HERE";
             return;
         }
         
-        NSString *lyricsBody = jsonResponse[@"message"][@"body"][@"lyrics"][@"lyrics_body"];
-        
-        // Remove the Musixmatch disclaimer
-        if ([lyricsBody containsString:@"*******"]) {
-            lyricsBody = [[lyricsBody componentsSeparatedByString:@"*******"] firstObject];
-        }
+        // The private API has a different, more complex structure
+        NSString *lyricsBody = jsonResponse[@"message"][@"body"][@"macro_calls"][@"track.subtitles.get"][@"message"][@"body"][@"subtitles_list"][0][@"subtitle"][@"subtitle_body"];
         
         if (lyricsBody && lyricsBody.length > 0) {
+            // The response is a JSON string of timed lines, we need to parse it
+            NSData *lyricsData = [lyricsBody dataUsingEncoding:NSUTF8StringEncoding];
+            NSArray *timedLines = [NSJSONSerialization JSONObjectWithData:lyricsData options:0 error:nil];
+            
+            NSMutableString *formattedLyrics = [NSMutableString new];
+            for (NSDictionary *line in timedLines) {
+                [formattedLyrics appendFormat:@"%@\n", line[@"text"]];
+            }
+            
             dispatch_async(dispatch_get_main_queue(), ^{
-                completion(lyricsBody, nil);
+                completion([formattedLyrics stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]], nil);
             });
         } else {
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -62,4 +101,10 @@ static NSString * const musixmatchApiKey = @"PASTE_YOUR_API_KEY_HERE";
     }] resume];
 }
 
+- (void)dealloc {
+    // Clean up observer
+    CFNotificationCenterRemoveEveryObserver(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge const void *)(self));
+}
+
 @end
+
