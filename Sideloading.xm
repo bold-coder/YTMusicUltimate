@@ -352,8 +352,9 @@ BOOL isFirstTime = YES;
                         if (error) {
                             lyricsTextView.text = [NSString stringWithFormat:@"An error occurred:\n%@", [error localizedDescription]];
                         } else {
-                            // Success! Inject the fetched lyrics directly into the native text view.
-                            lyricsTextView.text = lyrics;
+                            // Success! Inject the fetched lyrics directly into the native text view with a custom footer.
+                            NSString *footer = @"\n\nSource: Musixmatch (YTMusicUltimate)";
+                            lyricsTextView.text = [lyrics stringByAppendingString:footer];
                         }
                     }];
                 }
