@@ -328,7 +328,8 @@
     UIAlertController *requestingAlert = [UIAlertController alertControllerWithTitle:@"Requesting Token..." message:nil preferredStyle:UIAlertControllerStyleAlert];
     [self presentViewController:requestingAlert animated:YES completion:nil];
 
-    NSURL *url = [NSURL URLWithString:@"https://apic-mobile.musixmatch.com/ws/1.1/token.get?app_id=web-desktop-app-v1.0"];
+    // FIX: Changed to the new, working API endpoint
+    NSURL *url = [NSURL URLWithString:@"https://apic.musixmatch.com/ws/1.1/token.get?app_id=web-desktop-app-v1.0"];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request addValue:@"Mozilla/5.0" forHTTPHeaderField:@"User-Agent"];
 
