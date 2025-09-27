@@ -56,11 +56,13 @@ static void preferencesChanged(CFNotificationCenterRef center, void *observer, C
     NSString *trackString = [songTitle stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
     NSString *artistString = [artistName stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
 
-    // This is the unofficial endpoint used by apps like Spotify
     NSString *urlString = [NSString stringWithFormat:@"https://apic-mobile.musixmatch.com/ws/1.1/macro.subtitles.get?format=json&namespace=lyrics_synched&q_album=&q_artist=%@&q_artists=%@&q_track=%@&track_spotify_id=&user_language=en&user_token=%@", artistString, artistString, trackString, self.userToken];
     NSURL *url = [NSURL URLWithString:urlString];
 
-    [[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    [request setValue:@"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36" forHTTPHeaderField:@"User-Agent"];
+
+    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 completion(nil, error);
@@ -77,11 +79,9 @@ static void preferencesChanged(CFNotificationCenterRef center, void *observer, C
             return;
         }
         
-        // The private API has a different, more complex structure
         NSString *lyricsBody = jsonResponse[@"message"][@"body"][@"macro_calls"][@"track.subtitles.get"][@"message"][@"body"][@"subtitles_list"][0][@"subtitle"][@"subtitle_body"];
         
         if (lyricsBody && lyricsBody.length > 0) {
-            // The response is a JSON string of timed lines, we need to parse it
             NSData *lyricsData = [lyricsBody dataUsingEncoding:NSUTF8StringEncoding];
             NSArray *timedLines = [NSJSONSerialization JSONObjectWithData:lyricsData options:0 error:nil];
             
