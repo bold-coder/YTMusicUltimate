@@ -1,6 +1,9 @@
 #import "TabBarSettingsController.h"
+#import "../Headers/YTAssetLoader.h"
+#import "../Headers/NSBundle+YTMU.h"
+#import "../Headers/ABCSwitch.h"
 
-@implementation OtherSettingsController
+@implementation TabBarSettingsController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -145,3 +148,4 @@
 }
 
 @end
+
