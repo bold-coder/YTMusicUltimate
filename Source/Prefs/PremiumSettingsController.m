@@ -1,4 +1,13 @@
 #import "PremiumSettingsController.h"
+#import "../Headers/Localization.h"
+
+// Define the suite name to ensure consistency with LyricsManager
+#define LYRICS_DEFAULTS_SUITE @"com.ps.ytmusicultimate"
+
+// Class extension to hold our new text field property
+@interface PremiumSettingsController ()
+@property (nonatomic, strong) UITextField *tokenTextField;
+@end
 
 @implementation PremiumSettingsController
 
@@ -26,12 +35,31 @@
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return 1;
+    return 2; // Increased to 2 sections
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return 2;
+    if (section == 0) {
+        return 2; // For the toggles
+    }
+    return 1; // For the token field
 }
+
+// Add titles for our new sections
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    if (section == 1) {
+        return @"Musixmatch Lyrics";
+    }
+    return nil;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    if (section == 1) {
+        return @"Get your token from lrms.main.my.id. This allows the tweak to fetch premium and synced lyrics.";
+    }
+    return nil;
+}
+
 
 -(UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath{
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"cell"];
@@ -40,9 +68,9 @@
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"cell"];
     }
 
-    NSMutableDictionary *YTMUltimateDict = [NSMutableDictionary dictionaryWithDictionary:[[NSUserDefaults standardUserDefaults] dictionaryForKey:@"YTMUltimate"]];
-
     if (indexPath.section == 0) {
+        // --- Existing code for toggles ---
+        NSMutableDictionary *YTMUltimateDict = [NSMutableDictionary dictionaryWithDictionary:[[NSUserDefaults standardUserDefaults] dictionaryForKey:@"YTMUltimate"]];
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"cell1"];
         
         NSArray *settingsData = @[
@@ -58,19 +86,49 @@
         cell.detailTextLabel.numberOfLines = 0;
         cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
 
-        ABCSwitch *switchControl = [[NSClassFromString(@"ABCSwitch") alloc] init];
+        UISwitch *switchControl = [[UISwitch alloc] init];
         switchControl.onTintColor = [UIColor colorWithRed:30.0/255.0 green:150.0/255.0 blue:245.0/255.0 alpha:1.0];
         [switchControl addTarget:self action:@selector(toggleSwitch:) forControlEvents:UIControlEventValueChanged];
         switchControl.tag = indexPath.row;
         switchControl.on = [YTMUltimateDict[data[@"key"]] boolValue];
         cell.accessoryView = switchControl;
+    } else if (indexPath.section == 1) {
+        // --- New code for the token text field ---
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"tokenCell"];
+        cell.textLabel.text = @"User Token";
+
+        // Initialize and configure the text field
+        self.tokenTextField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.width * 0.5, 30)];
+        self.tokenTextField.placeholder = @"Paste your token here";
+        self.tokenTextField.textAlignment = NSTextAlignmentRight;
+
+        // Load the saved token
+        NSUserDefaults *lyricsPrefs = [[NSUserDefaults alloc] initWithSuiteName:LYRICS_DEFAULTS_SUITE];
+        self.tokenTextField.text = [lyricsPrefs stringForKey:@"musixmatchUserToken"];
+        
+        // Add a target to save the text when it changes
+        [self.tokenTextField addTarget:self action:@selector(tokenTextFieldDidChange:) forControlEvents:UIControlEventEditingChanged];
+
+        cell.accessoryView = self.tokenTextField;
     }
 
     return cell;
 }
 
 - (BOOL)tableView:(UITableView *)tableView shouldHighlightRowAtIndexPath:(NSIndexPath *)indexPath {
+    // Make the token cell un-selectable, but the toggles remain as they were
+    if (indexPath.section == 1) {
+        return NO;
+    }
     return NO;
+}
+
+// New method to save the token when the text field changes
+- (void)tokenTextFieldDidChange:(UITextField *)sender {
+    NSUserDefaults *lyricsPrefs = [[NSUserDefaults alloc] initWithSuiteName:LYRICS_DEFAULTS_SUITE];
+    [lyricsPrefs setObject:sender.text forKey:@"musixmatchUserToken"];
+    // Post a notification so LyricsManager can reload the token immediately
+    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (CFStringRef)@"com.ps.ytmusicultimate/preferences.changed", NULL, NULL, YES);
 }
 
 - (void)toggleSwitch:(UISwitch *)sender {
