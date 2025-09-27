@@ -322,11 +322,10 @@ BOOL isFirstTime = YES;
     // A short delay allows the UI to update with the "Lyrics unavailable" message first
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         
-        // FIX: Use Key-Value Coding (KVC) to access the private ivar. This is ARC-safe.
         UITextView *lyricsTextView = [self valueForKey:@"_lyricsTextView"];
         
-        // Check if native lyrics are unavailable
-        if (lyricsTextView && ([lyricsTextView.text containsString:@"Lyrics aren't available"] || [lyricsTextView.text containsString:@"No lyrics available for this song"])) {
+        // FIX: Added the new "Lyrics not available at this time." message to the check.
+        if (lyricsTextView && ([lyricsTextView.text containsString:@"Lyrics aren't available"] || [lyricsTextView.text containsString:@"No lyrics available for this song"] || [lyricsTextView.text containsString:@"Lyrics not available at this time."])) {
             
             // Traverse the view controller hierarchy to find the Now Playing controller to get song info
             UIViewController *parent = self.parentViewController;
