@@ -315,17 +315,42 @@ BOOL isFirstTime = YES;
 // Hook the native lyrics page
 %hook YTMLyricsPage
 
+// Add a new method to show our debug alert
+%new
+- (void)showDebugLog:(NSString *)logMessage {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Lyrics Debug Log" message:logMessage preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Copy & Close" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        [[UIPasteboard generalPasteboard] setString:logMessage];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleCancel handler:nil]];
+
+    // Find the root view controller to present the alert
+    UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+    [rootVC presentViewController:alert animated:YES completion:nil];
+}
+
 // This method is called when the lyrics data is set
 - (void)setModel:(id)model {
     %orig; // Let the original method run first
+
+    // A mutable string to collect all our log messages
+    NSMutableString *logString = [NSMutableString new];
+    [logString appendString:@"Hook triggered for setModel:\n"];
 
     // A short delay allows the UI to update with the "Lyrics unavailable" message first
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         
         UITextView *lyricsTextView = [self valueForKey:@"_lyricsTextView"];
+        if (!lyricsTextView) {
+            [logString appendString:@"ERROR: Could not find lyrics text view."];
+            [self showDebugLog:logString];
+            return;
+        }
+        [logString appendFormat:@"Found text view. Current text: %@\n", lyricsTextView.text];
         
-        // FIX: Added the new "Lyrics not available at this time." message to the check.
+        // Check if native lyrics are unavailable
         if (lyricsTextView && ([lyricsTextView.text containsString:@"Lyrics aren't available"] || [lyricsTextView.text containsString:@"No lyrics available for this song"] || [lyricsTextView.text containsString:@"Lyrics not available at this time."])) {
+            [logString appendString:@"'Lyrics unavailable' message detected. Proceeding...\n"];
             
             // Traverse the view controller hierarchy to find the Now Playing controller to get song info
             UIViewController *parent = self.parentViewController;
@@ -338,10 +363,24 @@ BOOL isFirstTime = YES;
                 parent = parent.parentViewController;
             }
 
+            if (!nowPlayingVC) {
+                [logString appendString:@"ERROR: Could not find NowPlayingViewController."];
+                [self showDebugLog:logString];
+                return;
+            }
+            [logString appendString:@"Found NowPlayingViewController.\n"];
+
             if (nowPlayingVC && nowPlayingVC.playerResponse) {
                 YTVideoDetails *videoDetails = [nowPlayingVC.playerResponse videoDetails];
                 NSString *currentTitle = videoDetails.title;
                 NSString *currentArtist = videoDetails.author;
+
+                if (!currentTitle || !currentArtist) {
+                    [logString appendString:@"ERROR: Found NowPlayingVC but title or artist is nil."];
+                    [self showDebugLog:logString];
+                    return;
+                }
+                [logString appendFormat:@"Found song info - Title: '%@', Artist: '%@'\n", currentTitle, currentArtist];
 
                 // Set a temporary loading message
                 lyricsTextView.text = @"Searching for lyrics...";
@@ -349,12 +388,18 @@ BOOL isFirstTime = YES;
                 // Fetch lyrics using our manager
                 [[LyricsManager sharedInstance] fetchLyricsForSong:currentTitle artist:currentArtist completion:^(NSString *lyrics, NSError *error) {
                     if (error) {
+                        [logString appendFormat:@"ERROR fetching lyrics: %@", error];
                         lyricsTextView.text = [NSString stringWithFormat:@"An error occurred:\n%@", [error localizedDescription]];
                     } else {
-                        // Success! Inject the fetched lyrics directly into the native text view.
+                        [logString appendString:@"Successfully fetched lyrics."];
                         lyricsTextView.text = lyrics;
                     }
+                    // Show the log regardless of success or failure
+                    [self showDebugLog:logString];
                 }];
+            } else {
+                 [logString appendString:@"ERROR: Found NowPlayingVC, but its playerResponse was nil."];
+                 [self showDebugLog:logString];
             }
         }
     });
