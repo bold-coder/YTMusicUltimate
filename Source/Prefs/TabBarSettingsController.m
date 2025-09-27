@@ -1,6 +1,6 @@
 #import "TabBarSettingsController.h"
 #import "../Headers/YTAssetLoader.h"
-#import "../Headers/NSBundle+YTMU.h"
+#import "../Utils/NSBundle+YTMU.h"
 #import "../Headers/ABCSwitch.h"
 
 @implementation TabBarSettingsController
